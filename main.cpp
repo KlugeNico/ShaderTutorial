@@ -4,7 +4,6 @@
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
 #include <fstream>
-#include <cmath>
 #include <vector>
 
 #define ANT_AMOUNT 400000
