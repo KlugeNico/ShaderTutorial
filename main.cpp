@@ -1,24 +1,158 @@
 #include <iostream>
 
+#include <GL/glew.h>
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
 #include <fstream>
 #include <cmath>
-
-#include "code/util/OpenGLHelper.h"
+#include <vector>
 
 #define ANT_AMOUNT 400000
 #define ANT_DATA_SIZE 3
 
 
-// Hilfsfunktion, um eine OpenGL Textur zu erzeugen, die wir verwenden können, um darauf zu zeichnen, bzw. davon zu lesen.
-GLuint createGlTexture(sf::Vector2u size);
+class OpenGLHelper {
+
+public:
+    /**
+     * Kompiliere den Shader-code aus einer Datei in OpenGL zur Laufzeit.
+     *
+     * @param shaderCodeFile Die Datei mit dem zu kompilierende Shader-code.
+     * @param type In der Regel GL_VERTEX_SHADER oder GL_FRAGMENT_SHADER.
+     * @return die OpenGL-interne ID des Shaders (Auch "handle" genannt). Diese brauchen wir in Zukunft, um den Shader
+     * z.B. zu konfigurieren oder zu laden
+     */
+    static GLuint compileShader(const std::string &shaderCodeFile, GLenum type);
+
+    /**
+     * Link das Program. Muss gemacht werden, nachdem die zugehörigen shader attached wurden (glAttachShader)
+     *
+     * @param ProgramID Das zu Program, das gelinked werden soll.
+     */
+    static void linkProgram(GLuint ProgramID);
+
+    /**
+     * Erstelle ein OpenGL-Program. Diese Funktion ruft compileShader und linkProgram auf.
+     *
+     * @param vertexShaderFile Die Datei mit dem zu kompilierende vertex-shader-code.
+     * @param fragmentShaderFile Die Datei mit dem zu kompilierende fragment-shader-code.
+     * @param attribCount Wie viele Attribute besitzt unser vertex-shader? Mit Attribute sind hier die "in" variablen
+     * in den Shadern gemeint. Diese unterscheiden sich insofern von den "uniform" Variablen, dass sie für jeden Vertex
+     * unterschiedlich sind. Der Ameisen-shader braucht zum Beispiel für jeden Vertex (da jeder Vertex eine Ameise
+     * representiert) den x-y-Koordinaten-Vektor und die Rotation.
+     * @return die OpenGL-interne ID des Shaders (Auch "handle" genannt). Diese brauchen wir in Zukunft, um den Shader
+     * z.B. zu konfigurieren oder zu laden
+     */
+    static GLuint createProgram(const std::string &vertexShaderFile, const std::string &fragmentShaderFile, GLuint attribCount = 0);
+
+    /**
+     * Hilfsfunktion, um eine OpenGL Textur zu erzeugen, die wir verwenden können, um darauf zu zeichnen, bzw. davon
+     * zu lesen.
+     *
+     * @param size Die Höhe und Breite der Textur.
+     * @return die OpenGL-interne ID der Textur
+     */
+    static GLuint createGlTexture(sf::Vector2u size);
+
+};
+
+
+GLuint OpenGLHelper::createProgram(const std::string& vertexShaderFile, const std::string& fragmentShaderFile, GLuint attribCount){
+
+    // Erstelle ein Program in OpenGL
+    GLuint programID = glCreateProgram();
+
+    // Create and compile the shaders
+    GLuint vertexShaderID = compileShader(vertexShaderFile, GL_VERTEX_SHADER);
+    GLuint fragmentShaderID = compileShader(fragmentShaderFile, GL_FRAGMENT_SHADER);
+
+    // Füge die kompilierten Shader dem Program hinzu
+    glAttachShader(programID, vertexShaderID);
+    glAttachShader(programID, fragmentShaderID);
+
+    // Link das Program mit den shadern
+    linkProgram(programID);
+
+    // Aktiviere die "in"-Attribute im Vertex-Shader
+    for (GLuint i = 0; i < attribCount; ++i) {
+        glEnableVertexAttribArray(i);
+    }
+
+    return programID;
+}
+
+GLuint OpenGLHelper::compileShader(const std::string &shaderCodeFile, GLenum type) {
+    // Lade Datei und lese Inhalt in shaderCode
+    std::ifstream shaderCode_file(shaderCodeFile);
+    std::string shaderCode((std::istreambuf_iterator<char>(shaderCode_file)),std::istreambuf_iterator<char>());
+
+    // Erstelle Pointer auf den unseren code-quelltext
+    char const * VertexSourcePointer = shaderCode.c_str();
+
+    // Erstelle einen Shader in OpenGL
+    GLuint shaderId = glCreateShader(type);
+
+    // Lege den Quellcode des Shaders fest auf unseren code-quelltext und kompiliere ihn
+    glShaderSource(shaderId, 1, &VertexSourcePointer , nullptr);
+    glCompileShader(shaderId);
+
+    // Check Vertex Shader
+    // Prüfe, ob Fehler aufgetreten sind und gebe sie ggf. aus.
+    // Optional, aber WICHTIG, da wir hier auf Programmierfehler in unseren Shadern aufmerksam gemacht werden!
+    GLint length;
+
+    // ANMERKUNG: Manche OpenGL-Funktionen haben zwar kein Rückgabewert, allerdings wird eine Variable die man hinein
+    // gibt befüllt und soe wird ein Wert quasi zurück gegeben. (z.B. siehe hier InfoLogLength)
+
+    glGetShaderiv(shaderId, GL_INFO_LOG_LENGTH, &length);
+    if ( length > 0 ){
+        std::vector<char> log(length);
+        glGetShaderInfoLog(shaderId, length, nullptr, &log[0]);
+        std::cerr << &log[0];
+        throw;
+    }
+
+    return shaderId;
+}
+
+void OpenGLHelper::linkProgram(GLuint ProgramID) {
+    glLinkProgram(ProgramID);
+
+    // Prüfe, ob Fehler aufgetreten sind und gebe sie ggf. aus.
+    // Optional, aber WICHTIG, da wir hier auf Programmierfehler in unseren Shadern aufmerksam gemacht werden!
+    GLint status;
+    glGetProgramiv(ProgramID, GL_LINK_STATUS, &status);
+    if(status == GL_FALSE) {
+        GLint length;
+        glGetProgramiv(ProgramID, GL_INFO_LOG_LENGTH, &length);
+        std::vector<char> log(length);
+        glGetProgramInfoLog(ProgramID, length, &length, &log[0]);
+        std::cerr << &log[0];
+        throw;
+    }
+}
+
+GLuint OpenGLHelper::createGlTexture(sf::Vector2u size) {
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+
+    // "Bind" the newly created texture : all future texture functions will modify this texture
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    // Give an empty image to OpenGL ( the last "0" )
+    glTexImage2D(GL_TEXTURE_2D, 0,GL_RGB, (GLsizei) size.x, (GLsizei) size.y, 0,GL_RGB, GL_UNSIGNED_BYTE, 0);
+
+    // Poor filtering. Needed !
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+    return textureID;
+}
 
 
 // Hilfsfunktion, um eine Zufallszahl zu generieren. inValue sollte sich allerdings verändern (z.B. inValue++)
 // Generiert für den gleichen inValue immer die gleiche Zahl
-uint32_t rand(uint32_t inValue)
-{
+uint32_t rand(uint32_t inValue) {
     inValue ^= 2747636419u;
     inValue *= 2654435769u;
     inValue ^= inValue >> 16;
@@ -45,10 +179,10 @@ int main() {
     // Init Glew
     GLenum err = glewInit();
     if (err != GLEW_OK)
-        throw std::system_error();
+        throw std::runtime_error("Error with glew!");
     // Wir wollen mindestens GLEW version 2.1
     if (!GLEW_VERSION_2_1)  // check that the machine supports the 2.1 API.
-        throw std::system_error();
+        throw std::runtime_error("Needs minimum glew 2.1!");
 
 
 
@@ -105,7 +239,7 @@ int main() {
     for (size_t i = 0; i < ANT_AMOUNT * ANT_DATA_SIZE; i += ANT_DATA_SIZE) {
         antData[i] =       (GLfloat) ( rand(iRand++) % resolution.x );  // random x
         antData[i + 1] =   (GLfloat) ( rand(iRand++) % resolution.y );  // random y
-        antData[i + 2] = (((GLfloat) ( rand(iRand++) % 100000u)) / 100000.f) * 2.f * (float) M_PI;  // random rotation
+        antData[i + 2] = (((GLfloat) ( rand(iRand++) % 100000u)) / 100000.f) * 2.f * 3.14159f;  // random rotation
     }
 
     // generate ant buffers
@@ -144,8 +278,8 @@ int main() {
     // Auch hier haben wir zwei Texturen, um von einer Lesen zu können und auf die andere schreiben zu können. Wir lesen
     // quasi immer von der Textur des letzten Laufes (Frame).
     GLuint textures[2];
-    textures[0] = createGlTexture(resolution);
-    textures[1] = createGlTexture(resolution);
+    textures[0] = OpenGLHelper::createGlTexture(resolution);
+    textures[1] = OpenGLHelper::createGlTexture(resolution);
 
     // Current Framebuffer Texture
     // Dieser Wert wird jedes Frame zwischen 0 und 1 wechseln.
@@ -280,21 +414,4 @@ int main() {
     }
 
     return 0;
-}
-
-GLuint createGlTexture(sf::Vector2u size) {
-    GLuint textureID;
-    glGenTextures(1, &textureID);
-
-    // "Bind" the newly created texture : all future texture functions will modify this texture
-    glBindTexture(GL_TEXTURE_2D, textureID);
-
-    // Give an empty image to OpenGL ( the last "0" )
-    glTexImage2D(GL_TEXTURE_2D, 0,GL_RGB, (GLsizei) size.x, (GLsizei) size.y, 0,GL_RGB, GL_UNSIGNED_BYTE, 0);
-
-    // Poor filtering. Needed !
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-    return textureID;
 }
