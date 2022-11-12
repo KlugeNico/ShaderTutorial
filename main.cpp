@@ -107,7 +107,8 @@ GLuint OpenGLHelper::compileShader(const std::string &shaderCodeFile, GLenum typ
     if ( length > 0 ){
         std::vector<char> log(length);
         glGetShaderInfoLog(shaderId, length, nullptr, &log[0]);
-        std::cerr << &log[0];
+        std::cerr << "Error in file: " << shaderCodeFile << std::endl;
+        std::cerr << &log[0] << std::endl;
         throw;
     }
 
@@ -126,7 +127,7 @@ void OpenGLHelper::linkProgram(GLuint ProgramID) {
         glGetProgramiv(ProgramID, GL_INFO_LOG_LENGTH, &length);
         std::vector<char> log(length);
         glGetProgramInfoLog(ProgramID, length, &length, &log[0]);
-        std::cerr << &log[0];
+        std::cerr << &log[0] << std::endl;
         throw;
     }
 }
