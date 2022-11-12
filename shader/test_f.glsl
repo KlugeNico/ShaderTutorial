@@ -20,9 +20,9 @@ void main()
     uint seed = (posY * screenWidth + posX) * 3u;
 
     color = vec3(
-        (rand(seed) % 255u) / 255f,
-        (rand(seed + 1u) % 255u) / 255f,
-        (rand(seed + 2u) % 255u) / 255f
+        (rand(seed) % 255u) / 255.0f,
+        (rand(seed + 1u) % 255u) / 255.0f,
+        (rand(seed + 2u) % 255u) / 255.0f
     );
 
 }

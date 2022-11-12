@@ -19,7 +19,7 @@ vec3 getColor(vec2 offset);
 float randF();
 
 const float senseAngle = 0.3f;
-const float senseDistance = 8f;
+const float senseDistance = 8.0f;
 const float offroadMul = 0.1f;
 const float senseMul = 0.1f;
 
@@ -76,5 +76,5 @@ float randF()
     state *= 2654435769u;
     state ^= state >> 16;
     state *= 2654435769u;
-    return float(state % 1000000u) / 1000000f;
+    return float(state % 1000000u) / 1000000.0f;
 }
